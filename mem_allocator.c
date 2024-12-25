@@ -6,8 +6,10 @@ typedef struct block_header block_header;
 
 typedef struct block_header {
     size_t size;
-    char alloc;
     block_header * next; // for free list linking
+    void * prev; // previous data ptr in contiguous memory
+    char alloc; // 0 for unallocated 1 for allocated
+    char end; // 1 if block is last in page else 0
 } block_header;
 
 #define OVERHEAD sizeof(block_header)
@@ -49,6 +51,8 @@ void remove_free_list(block_header * bh) {
 }
 
 void * alloc_mem(size_t bytes) {
+    if (!bytes)
+        return NULL;
     size_t new_bytes = bytes + OVERHEAD;
     void * ptr = NULL;
     block_header * traverse = free_list_head;
@@ -58,7 +62,7 @@ void * alloc_mem(size_t bytes) {
         if (traverse->size >= bytes) {
             ptr = traverse;
             remove_free_list(traverse);
-            break; 
+            break;
         }
         traverse = traverse->next;
     }
@@ -70,6 +74,7 @@ void * alloc_mem(size_t bytes) {
             exit(1);
         }
         ((block_header *)ptr)->size = page_align(new_bytes) - OVERHEAD;
+        ((block_header *)ptr)->prev = NULL;
     }
 
     size_t left_over = ((block_header *)ptr)->size - bytes;
@@ -77,6 +82,7 @@ void * alloc_mem(size_t bytes) {
     // set header
     ((block_header *)ptr)->alloc = 1;
     ((block_header *)ptr)->size = bytes;
+    ((block_header *)ptr)->end = 0;
 
     // increment ptr to actual data
     ptr = ((char *)(ptr) + OVERHEAD);
@@ -87,20 +93,47 @@ void * alloc_mem(size_t bytes) {
 
         next_header->alloc = 0;
         next_header->size = left_over - OVERHEAD;
+        next_header->prev = ptr;
         append_free_list(next_header);
+    } else {
+        get_header(ptr)->end = 1;
     }
 
     return ptr;
 }
 
 void free_mem(void * ptr) {
-    append_free_list(get_header(ptr));
+    // append_free_list(get_header(ptr));
+    block_header * header = get_header(ptr);
+    char prev_alloc = 1;
+    char next_alloc = 1;
+
+    if (header->prev) {
+        block_header * prev_block = get_header(header->prev);
+        prev_alloc = prev_block->alloc;
+    }
+
+    if (!header->end) {
+        block_header * next_block = (char *)header + OVERHEAD + header->size;
+        next_alloc = next_block->alloc;
+    }
+
+    // coalescing
+    if (!prev_alloc && !next_alloc) {
+
+    } else if (!prev_alloc && next_alloc) {
+
+    } else if (prev_alloc && !next_alloc) {
+
+    } else {
+        
+    }
 }
 
 int main() {
-    void * test = alloc_mem(4096 - 24);
+    void * test = alloc_mem(4096 - OVERHEAD);
     block_header * header = get_header(test);
-    free_mem(test);
+    // free_mem(test);
     void * test2 = alloc_mem(10);
     block_header * header2 = get_header(test2);
     return 0;
