@@ -94,12 +94,13 @@ void * alloc_mem(size_t bytes) {
 }
 
 void free_mem(void * ptr) {
-
+    append_free_list(get_header(ptr));
 }
 
 int main() {
-    void * test = alloc_mem(5);
+    void * test = alloc_mem(4096 - 24);
     block_header * header = get_header(test);
+    free_mem(test);
     void * test2 = alloc_mem(10);
     block_header * header2 = get_header(test2);
     return 0;
